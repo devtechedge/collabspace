@@ -1,0 +1,9 @@
+{
+  "buildCommand": "npm run build --workspace=collabspace-client",
+  "installCommand": "npm install",
+  "outputDirectory": "client/dist",
+  "framework": null,
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
+}

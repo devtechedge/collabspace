@@ -20,7 +20,7 @@ export default function ReactionsLayer({
   panY,
 }: ReactionsLayerProps) {
   return (
-    <div className="reactions-layer" style={{ pointerEvents: "none" }}>
+    <div className="reactions-layer">
       <AnimatePresence>
         {reactions.map((r) => {
           const screenX = r.x * zoom + panX;
@@ -39,7 +39,7 @@ export default function ReactionsLayer({
               exit={{ opacity: 0, scale: 0.5 }}
               transition={{ duration: 2.5, ease: "easeOut", times: [0, 0.15, 0.7, 1] }}
             >
-              <span style={{ display: "inline-block" }}>{r.emoji}</span>
+              <span className="reaction-emoji">{r.emoji}</span>
               <span
                 className="reaction-label"
                 style={{ background: r.userColor }}

@@ -104,8 +104,7 @@ export default function ChatPanel({ messages, currentUserId, onSend }: ChatPanel
                   {group.messages.map((m, i) => (
                     <div
                       key={m.id}
-                      className={`chat-message-bubble ${isOwn ? "own" : ""}`}
-                      style={{ marginTop: i > 0 ? 4 : 0 }}
+                      className={`chat-message-bubble ${isOwn ? "own" : ""}${i > 0 ? " stacked" : ""}`}
                     >
                       {m.text}
                     </div>

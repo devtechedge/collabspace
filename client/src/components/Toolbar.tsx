@@ -84,14 +84,7 @@ function Toolbar({
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.92 }}
             >
-              <span
-                style={{
-                  fontSize: tool === "TEXT" ? 14 : tool === "SELECT" ? 14 : 16,
-                  fontWeight: tool === "TEXT" ? 700 : 400,
-                }}
-              >
-                {icon}
-              </span>
+              <span className="tool-icon">{icon}</span>
               <span className="shortcut-hint">{shortcut}</span>
             </motion.button>
           ))}
@@ -128,9 +121,10 @@ function Toolbar({
             >
               <span className="toolbar-section-label">Weight</span>
               <motion.button
-                className={`tool-btn ${activeFontWeight === "normal" ? "active" : ""}`}
+                className={`tool-btn font-btn ${activeFontWeight === "normal" ? "active" : ""}`}
                 onClick={() => onFontWeightChange("normal")}
-                style={{ fontSize: 13, fontWeight: 400 }}
+                aria-label="Normal weight"
+                aria-pressed={activeFontWeight === "normal"}
                 title="Normal weight"
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.92 }}
@@ -138,9 +132,10 @@ function Toolbar({
                 A
               </motion.button>
               <motion.button
-                className={`tool-btn ${activeFontWeight === "bold" ? "active" : ""}`}
+                className={`tool-btn font-btn font-btn-bold ${activeFontWeight === "bold" ? "active" : ""}`}
                 onClick={() => onFontWeightChange("bold")}
-                style={{ fontSize: 13, fontWeight: 700 }}
+                aria-label="Bold weight"
+                aria-pressed={activeFontWeight === "bold"}
                 title="Bold weight"
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.92 }}
@@ -160,11 +155,10 @@ function Toolbar({
             data-tooltip="Undo  ·  ⌘Z"
             aria-label="Undo"
             disabled={!undoAvailable}
-            style={{ opacity: undoAvailable ? 1 : 0.35, cursor: undoAvailable ? "pointer" : "not-allowed" }}
             whileHover={undoAvailable ? { scale: 1.05 } : undefined}
             whileTap={undoAvailable ? { scale: 0.92 } : undefined}
           >
-            ↩
+            <span className="tool-icon">↩</span>
             <span className="shortcut-hint">⌘Z</span>
           </motion.button>
           <motion.button
@@ -173,11 +167,10 @@ function Toolbar({
             data-tooltip="Redo  ·  ⌘⇧Z"
             aria-label="Redo"
             disabled={!redoAvailable}
-            style={{ opacity: redoAvailable ? 1 : 0.35, cursor: redoAvailable ? "pointer" : "not-allowed" }}
             whileHover={redoAvailable ? { scale: 1.05 } : undefined}
             whileTap={redoAvailable ? { scale: 0.92 } : undefined}
           >
-            ↪
+            <span className="tool-icon">↪</span>
             <span className="shortcut-hint">⌘⇧Z</span>
           </motion.button>
         </div>
@@ -186,6 +179,8 @@ function Toolbar({
       {/* Floating Reactions Launcher */}
       <motion.div
         className="reactions-launcher"
+        role="toolbar"
+        aria-label="Reactions"
         initial={{ opacity: 0, y: 20, scale: 0.9 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         transition={{ type: "spring", stiffness: 280, damping: 22, delay: 0.4 }}

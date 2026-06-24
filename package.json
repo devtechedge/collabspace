@@ -1,22 +1,14 @@
 {
   "name": "collabspace",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "private": true,
-  "description": "Real-time multiplayer collaborative whiteboard with infinite Canvas, WebSocket streaming, and database persistence",
-  "workspaces": [
-    "client",
-    "server"
-  ],
+  "description": "Real-time multiplayer collaborative whiteboard — Vite + Supabase + Vercel",
   "scripts": {
-    "dev": "concurrently -n client,server -c indigo,green \"npm run dev:client\" \"npm run dev:server\"",
-    "dev:client": "npm run dev --workspace=client",
-    "dev:server": "npm run dev --workspace=server",
-    "build": "npm run build --workspace=client && npm run build --workspace=server",
-    "db:migrate": "npm run db:migrate --workspace=server",
-    "db:seed": "npm run db:seed --workspace=server",
-    "start": "concurrently -n client,server -c indigo,green \"npm run dev:client\" \"npm run dev:server\""
+    "dev": "npm run dev --workspace=collabspace-client",
+    "build": "npm run build --workspace=collabspace-client",
+    "start": "npm run dev --workspace=collabspace-client"
   },
-  "devDependencies": {
-    "concurrently": "^8.2.2"
-  }
+  "workspaces": [
+    "client"
+  ]
 }

@@ -1,11 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { io, Socket } from "socket.io-client";
-import { v4 as uuidv4 } from "uuid";
 import { motion, AnimatePresence } from "framer-motion";
 import DrawingBoard from "./components/DrawingBoard";
 import Toolbar from "./components/Toolbar";
 import Sidebar from "./components/Sidebar";
 import Toasts, { ToastItem } from "./components/Toasts";
+import ThemeToggle from "./components/ThemeToggle";
 import {
   CanvasElement,
   Tool,
@@ -16,33 +15,43 @@ import {
   Reaction,
   LaserPointer,
 } from "./types";
+import { isSupabaseConfigured } from "./lib/supabase";
+import { loadIdentity } from "./lib/identity";
+import { joinBoard, BoardSession } from "./lib/realtime";
+import {
+  listBoards,
+  createBoard,
+  deleteBoard,
+} from "./lib/boardSync";
+import {
+  upsertElement,
+  deleteElement,
+  clearBoardElements,
+} from "./lib/canvasSync";
+import { sendMessage } from "./lib/chatSync";
 
-const SOCKET_URL = "http://localhost:5000";
-
-// Default sticky palette (kept here for reaction spawning fallback)
+// Default spawn position for emoji reactions (canvas-space, near centre).
 const CANVAS_CENTER_FALLBACK = { x: 400, y: 300 };
 
 function App() {
-  // ─── Core State ──────────────────────────────────────────────────
-  const [socket, setSocket] = useState<Socket | null>(null);
-  const [connected, setConnected] = useState(false);
-
   // ─── Identity ────────────────────────────────────────────────────
-  const [currentUserId, setCurrentUserId] = useState<string>("");
-  const [currentUsername, setCurrentUsername] = useState<string>("");
+  const identity = useRef(loadIdentity()).current;
+  const [currentUserId] = useState(identity.userId);
+  const [currentUsername] = useState(identity.username);
+  const [currentColor] = useState(identity.color);
 
   // ─── Board State ─────────────────────────────────────────────────
   const [boards, setBoards] = useState<Board[]>([]);
   const [activeBoardId, setActiveBoardId] = useState<string | null>(null);
-  const [activeBoardName, setActiveBoardName] = useState<string>("CollabSpace");
+  const [activeBoardName, setActiveBoardName] = useState("CollabSpace");
 
   // ─── Canvas State ────────────────────────────────────────────────
   const [elements, setElements] = useState<CanvasElement[]>([]);
   const [activeTool, setActiveTool] = useState<Tool>("PENCIL");
-  const [activeColor, setActiveColor] = useState<string>("#ffffff");
-  const [activeFontWeight, setActiveFontWeight] = useState<string>("normal");
+  const [activeColor, setActiveColor] = useState("#ffffff");
+  const [activeFontWeight, setActiveFontWeight] = useState("normal");
 
-  // ─── Presence State ──────────────────────────────────────────────
+  // ─── Presence State (includes each peer's current cursor pos) ────
   const [onlineUsers, setOnlineUsers] = useState<UserPresence[]>([]);
 
   // ─── Chat State ──────────────────────────────────────────────────
@@ -60,7 +69,7 @@ function App() {
   // ─── Toasts ──────────────────────────────────────────────────────
   const [toasts, setToasts] = useState<ToastItem[]>([]);
   const pushToast = useCallback((text: string, type: ToastItem["type"] = "info") => {
-    const id = uuidv4();
+    const id = crypto.randomUUID();
     setToasts((prev) => [...prev, { id, text, type }]);
     setTimeout(() => {
       setToasts((prev) => prev.filter((t) => t.id !== id));
@@ -73,7 +82,7 @@ function App() {
   // ─── Welcome Toast ───────────────────────────────────────────────
   const [showWelcome, setShowWelcome] = useState(true);
 
-  // ─── Undo/Redo ──────────────────────────────────────────────────
+  // ─── Undo/Redo ───────────────────────────────────────────────────
   const undoStackRef = useRef<HistoryAction[]>([]);
   const redoStackRef = useRef<HistoryAction[]>([]);
   const [undoCount, setUndoCount] = useState(0);
@@ -84,132 +93,28 @@ function App() {
     setRedoCount(redoStackRef.current.length);
   }, []);
 
-  // ─── Initialize Socket ──────────────────────────────────────────
-  useEffect(() => {
-    const newSocket = io(SOCKET_URL, {
-      transports: ["websocket", "polling"],
-      autoConnect: true,
-    });
+  // ─── Realtime session ────────────────────────────────────────────
+  const sessionRef = useRef<BoardSession | null>(null);
 
-    newSocket.on("connect", () => {
-      console.log("[Socket] Connected:", newSocket.id);
-      setConnected(true);
-      pushToast("Connected to CollabSpace", "success");
-    });
-
-    newSocket.on("disconnect", () => {
-      console.log("[Socket] Disconnected");
-      setConnected(false);
-      pushToast("Disconnected — attempting to reconnect…", "danger");
-    });
-
-    // Receive identity from server
-    newSocket.on("identity", (data: { userId: string; username: string; color: string }) => {
-      setCurrentUserId(data.userId);
-      setCurrentUsername(data.username);
-    });
-
-    // Canvas history received when joining a room
-    newSocket.on("canvas-history", (history: CanvasElement[]) => {
-      console.log("[Socket] Canvas history received:", history.length, "elements");
-      setElements(history);
-      undoStackRef.current = [];
-      redoStackRef.current = [];
-      refreshCounts();
-    });
-
-    // Real-time element updates from peers
-    newSocket.on("element-update", (element: CanvasElement) => {
-      setElements((prev) => {
-        const idx = prev.findIndex((e) => e.id === element.id);
-        if (idx >= 0) {
-          const next = [...prev];
-          next[idx] = element;
-          return next;
-        }
-        return [...prev, element];
-      });
-    });
-
-    // Element deleted by peer
-    newSocket.on("element-delete", (elementId: string) => {
-      setElements((prev) => prev.filter((e) => e.id !== elementId));
-    });
-
-    // Presence updates
-    newSocket.on("presence-update", (users: UserPresence[]) => {
-      setOnlineUsers(users);
-    });
-
-    // Board cleared by peer
-    newSocket.on("canvas-cleared", () => {
-      setElements([]);
-      undoStackRef.current = [];
-      redoStackRef.current = [];
-      refreshCounts();
-      pushToast("Board was cleared by a collaborator", "warning");
-    });
-
-    // ─── Chat Events ─────────────────────────────────────────────
-    newSocket.on("chat-history", (messages: ChatMessage[]) => {
-      setChatMessages(messages);
-    });
-
-    newSocket.on("chat-message", (message: ChatMessage) => {
-      setChatMessages((prev) => [...prev, message]);
-      // Increment unread if chat tab not open and message is from someone else
-      if (!chatTabOpenRef.current && message.userId !== currentUserId) {
-        setUnreadChatCount((c) => c + 1);
-      }
-    });
-
-    // ─── Reaction Events ─────────────────────────────────────────
-    newSocket.on("reaction-burst", (reaction: Reaction) => {
-      setReactions((prev) => [...prev, reaction]);
-      // Auto-remove after 3s
-      setTimeout(() => {
-        setReactions((prev) => prev.filter((r) => r.id !== reaction.id));
-      }, 3000);
-    });
-
-    // ─── Laser Pointer Events ────────────────────────────────────
-    newSocket.on("laser-pointer", (data: LaserPointer) => {
-      setLaserPointers((prev) => {
-        const filtered = prev.filter((p) => p.userId !== data.userId);
-        if (data.active) {
-          return [...filtered, data];
-        }
-        return filtered;
-      });
-      // Auto-expire after 1.4s of inactivity (safety net)
-      setTimeout(() => {
-        setLaserPointers((prev) => prev.filter((p) => p.userId !== data.userId));
-      }, 1500);
-    });
-
-    setSocket(newSocket);
-
-    return () => {
-      newSocket.disconnect();
-    };
-  }, [pushToast, refreshCounts, currentUserId]);
-
-  // ─── Fetch Boards from API ──────────────────────────────────────
+  // ─── Fetch boards on mount ───────────────────────────────────────
   const fetchBoards = useCallback(async () => {
     try {
-      const res = await fetch("/api/boards");
-      const data = await res.json();
+      const data = await listBoards();
       setBoards(data);
     } catch (err) {
       console.error("Failed to fetch boards:", err);
+      pushToast("Failed to load boards", "danger");
     }
-  }, []);
+  }, [pushToast]);
 
   useEffect(() => {
+    if (!isSupabaseConfigured) return;
+    pushToast(`Connected as ${currentUsername}`, "success");
     fetchBoards();
-  }, [fetchBoards]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  // ─── Auto-select first board ────────────────────────────────────
+  // ─── Auto-select first board ─────────────────────────────────────
   useEffect(() => {
     if (boards.length > 0 && !activeBoardId) {
       handleJoinBoard(boards[0].id, boards[0].name);
@@ -217,25 +122,92 @@ function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [boards, activeBoardId]);
 
-  // ─── Board Operations ───────────────────────────────────────────
+  // ─── Join / leave a board ────────────────────────────────────────
   const handleJoinBoard = useCallback(
-    (boardId: string, boardName?: string) => {
+    async (boardId: string, boardName?: string) => {
+      if (boardId === activeBoardId) return;
+
+      // Leave previous session first.
+      const prev = sessionRef.current;
+      if (prev) {
+        prev.leave();
+        sessionRef.current = null;
+      }
+
       setActiveBoardId(boardId);
       setActiveBoardName(boardName || "Untitled Board");
-      socket?.emit("join-room", boardId);
       setUnreadChatCount(0);
+      setElements([]);
+      setChatMessages([]);
+      undoStackRef.current = [];
+      redoStackRef.current = [];
+      refreshCounts();
+
+      try {
+        const session = await joinBoard(boardId, {
+          userId: identity.userId,
+          username: identity.username,
+          color: identity.color,
+        }, {
+          onElementUpsert: (el) => {
+            setElements((prevEls) => {
+              const idx = prevEls.findIndex((e) => e.id === el.id);
+              if (idx >= 0) {
+                const next = [...prevEls];
+                next[idx] = el;
+                return next;
+              }
+              return [...prevEls, el];
+            });
+          },
+          onElementDelete: (id) => {
+            setElements((prevEls) => prevEls.filter((e) => e.id !== id));
+          },
+          onChatMessage: (msg) => {
+            setChatMessages((prev) => [...prev, msg]);
+            if (!chatTabOpenRef.current && msg.userId !== currentUserId) {
+              setUnreadChatCount((c) => c + 1);
+            }
+          },
+          onReaction: (r) => {
+            setReactions((prev) => [...prev, r]);
+            setTimeout(() => {
+              setReactions((prev) => prev.filter((x) => x.id !== r.id));
+            }, 3000);
+          },
+          onLaser: (p) => {
+            setLaserPointers((prev) => {
+              const filtered = prev.filter((q) => q.userId !== p.userId);
+              if (p.active) return [...filtered, p];
+              return filtered;
+            });
+            setTimeout(() => {
+              setLaserPointers((prev) => prev.filter((q) => q.userId !== p.userId));
+            }, 1500);
+          },
+          // Cursor position is read from onlineUsers (presence state).
+          onPresenceChange: (users) => {
+            setOnlineUsers(users);
+          },
+        });
+
+        // Seed local state from initial fetch.
+        setElements(session.initialElements);
+        setChatMessages(session.initialMessages);
+
+        sessionRef.current = session;
+      } catch (err) {
+        console.error("Failed to join board:", err);
+        pushToast("Failed to join board", "danger");
+      }
     },
-    [socket]
+    [activeBoardId, identity, pushToast, refreshCounts, currentUserId]
   );
 
+  // ─── Board CRUD ──────────────────────────────────────────────────
   const handleCreateBoard = useCallback(async () => {
     try {
-      const res = await fetch("/api/boards", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: `Board ${boards.length + 1}` }),
-      });
-      const newBoard = await res.json();
+      const newBoard = await createBoard(`Board ${boards.length + 1}`);
       setBoards((prev) => [newBoard, ...prev]);
       handleJoinBoard(newBoard.id, newBoard.name);
       pushToast(`Created "${newBoard.name}"`, "success");
@@ -248,308 +220,216 @@ function App() {
   const handleDeleteBoard = useCallback(
     async (boardId: string) => {
       try {
-        await fetch(`/api/boards/${boardId}`, { method: "DELETE" });
-        const updatedBoards = boards.filter((b) => b.id !== boardId);
-        setBoards(updatedBoards);
-        if (activeBoardId === boardId) {
-          if (updatedBoards.length > 0) {
-            handleJoinBoard(updatedBoards[0].id, updatedBoards[0].name);
-          } else {
-            setActiveBoardId(null);
-            setActiveBoardName("CollabSpace");
-            setElements([]);
-            handleCreateBoard();
-          }
+        await deleteBoard(boardId);
+        if (boardId === activeBoardId) {
+          sessionRef.current?.leave();
+          sessionRef.current = null;
+          setActiveBoardId(null);
+          setActiveBoardName("CollabSpace");
+          setElements([]);
         }
-        pushToast("Board deleted", "info");
+        await fetchBoards();
+        pushToast("Board deleted", "success");
       } catch (err) {
         console.error("Failed to delete board:", err);
         pushToast("Failed to delete board", "danger");
       }
     },
-    [boards, activeBoardId, handleJoinBoard, handleCreateBoard, pushToast]
+    [activeBoardId, fetchBoards, pushToast]
   );
 
-  // ─── Drawing Operations ─────────────────────────────────────────
+  // ─── Canvas event handlers (called by DrawingBoard) ──────────────
   const handleDrawElement = useCallback(
-    (element: CanvasElement) => {
-      setElements((prev) => {
-        const idx = prev.findIndex((e) => e.id === element.id);
-        if (idx >= 0) {
-          const next = [...prev];
-          next[idx] = element;
-          return next;
-        }
-        return [...prev, element];
-      });
-      socket?.emit("draw-element", element);
-    },
-    [socket]
-  );
-
-  const handleDeleteElement = useCallback(
-    (elementId: string) => {
-      setElements((prev) => prev.filter((e) => e.id !== elementId));
-      socket?.emit("delete-element", elementId);
-    },
-    [socket]
-  );
-
-  const handleClearBoard = useCallback(() => {
-    setElements([]);
-    undoStackRef.current = [];
-    redoStackRef.current = [];
-    refreshCounts();
-    socket?.emit("clear-board");
-    pushToast("Board cleared", "info");
-  }, [socket, refreshCounts, pushToast]);
-
-  // ─── Undo/Redo ──────────────────────────────────────────────────
-  const pushUndo = useCallback(
-    (action: HistoryAction) => {
-      undoStackRef.current.push(action);
-      // Limit stack size
-      if (undoStackRef.current.length > 100) {
-        undoStackRef.current.shift();
+    async (element: CanvasElement) => {
+      if (!activeBoardId) return;
+      try {
+        await upsertElement(activeBoardId, element);
+      } catch (err) {
+        console.error("Failed to save element:", err);
       }
-      // Clear redo on new action
+    },
+    [activeBoardId]
+  );
+
+  const handleDeleteElement = useCallback(async (elementId: string) => {
+    try {
+      await deleteElement(elementId);
+    } catch (err) {
+      console.error("Failed to delete element:", err);
+    }
+  }, []);
+
+  const handleClearBoard = useCallback(async () => {
+    if (!activeBoardId) return;
+    try {
+      await clearBoardElements(activeBoardId);
+      setElements([]);
+      undoStackRef.current = [];
       redoStackRef.current = [];
       refreshCounts();
+      pushToast("Board cleared", "success");
+    } catch (err) {
+      console.error("Failed to clear board:", err);
+      pushToast("Failed to clear board", "danger");
+    }
+  }, [activeBoardId, pushToast, refreshCounts]);
+
+  const handleElementRevert = useCallback(
+    async (element: CanvasElement) => {
+      if (!activeBoardId) return;
+      try {
+        if (element._deleted) {
+          await deleteElement(element.id);
+        } else {
+          await upsertElement(activeBoardId, element);
+        }
+      } catch (err) {
+        console.error("Failed to revert element:", err);
+      }
     },
-    [refreshCounts]
+    [activeBoardId]
   );
+
+  // ─── Cursor move (presence update, ~30fps throttled upstream) ────
+  const handleCursorMove = useCallback((position: { x: number; y: number }) => {
+    sessionRef.current?.updateOwnCursor(position);
+  }, []);
+
+  // ─── Laser pointer (broadcast only, ephemeral) ───────────────────
+  const handleLaserMove = useCallback(
+    (position: { x: number; y: number } | null) => {
+      if (!position) return;
+      sessionRef.current?.sendLaser({ ...position, active: true });
+      // Auto-deactivate after 800ms of no movement (matches original).
+      if (laserEmitTimeoutRef.current) {
+        clearTimeout(laserEmitTimeoutRef.current);
+      }
+      laserEmitTimeoutRef.current = window.setTimeout(() => {
+        sessionRef.current?.sendLaser({ x: 0, y: 0, active: false });
+      }, 800);
+    },
+    []
+  );
+
+  // ─── Reaction (broadcast only, ephemeral, randomised spawn pos) ──
+  const handleSendReaction = useCallback((emoji: string) => {
+    const x = CANVAS_CENTER_FALLBACK.x + Math.random() * 200 - 100;
+    const y = CANVAS_CENTER_FALLBACK.y + Math.random() * 100 - 50;
+    sessionRef.current?.sendReaction({ emoji, x, y });
+  }, []);
+
+  // ─── Chat send ───────────────────────────────────────────────────
+  const handleSendChat = useCallback(
+    async (text: string) => {
+      if (!activeBoardId) return;
+      try {
+        await sendMessage(activeBoardId, identity, text);
+      } catch (err) {
+        console.error("Failed to send message:", err);
+      }
+    },
+    [activeBoardId, identity]
+  );
+
+  // ─── Undo/Redo wiring ────────────────────────────────────────────
+  const handlePushUndo = useCallback((action: HistoryAction) => {
+    undoStackRef.current.push(action);
+    if (undoStackRef.current.length > 100) undoStackRef.current.shift();
+    redoStackRef.current = [];
+    refreshCounts();
+  }, [refreshCounts]);
 
   const handleUndo = useCallback(() => {
     const action = undoStackRef.current.pop();
     if (!action) return;
-    refreshCounts();
-
     redoStackRef.current.push(action);
-
-    if (action.type === "ADD") {
-      // Undo an add = delete the element
-      setElements((prev) => prev.filter((e) => e.id !== action.element.id));
-      socket?.emit("element-revert", { ...action.element, _deleted: true });
-    } else if (action.type === "DELETE") {
-      // Undo a delete = restore the element
-      setElements((prev) => [...prev, action.element]);
-      socket?.emit("draw-element", action.element);
+    refreshCounts();
+    if (action.type === "DELETE") {
+      handleElementRevert({ ...action.element, _deleted: false });
+    } else if (action.type === "ADD") {
+      handleDeleteElement(action.element.id);
     } else if (action.type === "MODIFY" && action.previousState) {
-      // Undo a modify = restore previous state
-      setElements((prev) =>
-        prev.map((e) =>
-          e.id === action.previousState!.id ? action.previousState! : e
-        )
-      );
-      socket?.emit("element-revert", action.previousState);
+      handleElementRevert({ ...action.previousState, _deleted: false });
     }
-  }, [socket, refreshCounts]);
+  }, [handleDeleteElement, handleElementRevert, refreshCounts]);
 
   const handleRedo = useCallback(() => {
     const action = redoStackRef.current.pop();
     if (!action) return;
-    refreshCounts();
-
     undoStackRef.current.push(action);
-
-    if (action.type === "ADD") {
-      setElements((prev) => [...prev, action.element]);
-      socket?.emit("draw-element", action.element);
+    refreshCounts();
+    if (action.type === "ADD" || action.type === "MODIFY") {
+      handleElementRevert({ ...action.element, _deleted: false });
     } else if (action.type === "DELETE") {
-      setElements((prev) => prev.filter((e) => e.id !== action.element.id));
-      socket?.emit("element-revert", { ...action.element, _deleted: true });
-    } else if (action.type === "MODIFY" && action.element) {
-      setElements((prev) =>
-        prev.map((e) => (e.id === action.element.id ? action.element : e))
-      );
-      socket?.emit("element-revert", action.element);
+      handleDeleteElement(action.element.id);
     }
-  }, [socket, refreshCounts]);
+  }, [handleDeleteElement, handleElementRevert, refreshCounts]);
 
-  // ─── Keyboard Shortcuts ─────────────────────────────────────────
+  // ─── Keyboard shortcuts ──────────────────────────────────────────
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Don't intercept when typing in text input
       const target = e.target as HTMLElement;
       if (target.tagName === "INPUT" || target.tagName === "TEXTAREA") return;
 
       if (e.ctrlKey || e.metaKey) {
-        if (e.key === "z" && !e.shiftKey) {
-          e.preventDefault();
-          handleUndo();
-        } else if ((e.key === "z" && e.shiftKey) || e.key === "y") {
-          e.preventDefault();
-          handleRedo();
-        }
-        return;
+        if (e.key === "z" && !e.shiftKey) { e.preventDefault(); handleUndo(); return; }
+        if ((e.key === "z" && e.shiftKey) || e.key === "y") { e.preventDefault(); handleRedo(); return; }
       }
 
       const keyMap: Record<string, Tool> = {
-        v: "SELECT",
-        p: "PENCIL",
-        l: "LINE",
-        r: "RECTANGLE",
-        c: "CIRCLE",
-        t: "TEXT",
-        e: "ERASER",
-        n: "STICKY",
-        x: "LASER",
+        v: "SELECT", p: "PENCIL", l: "LINE", r: "RECTANGLE",
+        c: "CIRCLE", t: "TEXT", e: "ERASER", n: "STICKY", x: "LASER",
       };
-
       const tool = keyMap[e.key.toLowerCase()];
-      if (tool) {
-        setActiveTool(tool);
-      }
+      if (tool) setActiveTool(tool);
     };
-
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [handleUndo, handleRedo]);
 
-  // ─── Cursor Move (called from DrawingBoard) ─────────────────────
-  const handleCursorMove = useCallback(
-    (position: { x: number; y: number }) => {
-      socket?.emit("cursor-move", position);
-    },
-    [socket]
-  );
-
-  // ─── Laser Pointer Move (broadcasts to peers) ───────────────────
-  const handleLaserMove = useCallback(
-    (position: { x: number; y: number } | null) => {
-      if (!socket) return;
-      if (position) {
-        socket.emit("laser-pointer", { x: position.x, y: position.y, active: true });
-        // Schedule a "deactivate" emit after 800ms of no movement
-        if (laserEmitTimeoutRef.current) {
-          clearTimeout(laserEmitTimeoutRef.current);
-        }
-        laserEmitTimeoutRef.current = window.setTimeout(() => {
-          socket.emit("laser-pointer", { x: 0, y: 0, active: false });
-        }, 800);
-      } else {
-        if (laserEmitTimeoutRef.current) {
-          clearTimeout(laserEmitTimeoutRef.current);
-        }
-        socket.emit("laser-pointer", { x: 0, y: 0, active: false });
-      }
-    },
-    [socket]
-  );
-
-  // ─── Chat Send ──────────────────────────────────────────────────
-  const handleSendChat = useCallback(
-    (text: string) => {
-      socket?.emit("send-chat", text);
-    },
-    [socket]
-  );
-
-  // ─── Chat Open (clears unread badge) ────────────────────────────
-  const handleChatOpen = useCallback(() => {
-    chatTabOpenRef.current = true;
-    setUnreadChatCount(0);
-  }, []);
-
-  // Keep chatTabOpenRef synced with sidebar visibility (always visible here,
-  // so chat tab IS open from the user's perspective once they click it)
+  // ─── Cleanup on unmount ──────────────────────────────────────────
   useEffect(() => {
-    // Default: chat tab not open. When user clicks Chat tab, handleChatOpen fires.
-    // For simplicity, we treat "open" as "user has clicked chat at least once."
+    return () => {
+      sessionRef.current?.leave();
+      sessionRef.current = null;
+    };
   }, []);
-
-  // ─── Send Reaction ──────────────────────────────────────────────
-  const handleSendReaction = useCallback(
-    (emoji: string) => {
-      if (!socket) return;
-      // Spawn at center of current viewport (canvas coords)
-      // We don't have direct access to viewport here, but DrawingBoard handles
-      // the visual rendering based on the canvas position. Spawn near a
-      // visible area: use a default if we can't introspect.
-      const x = CANVAS_CENTER_FALLBACK.x + Math.random() * 200 - 100;
-      const y = CANVAS_CENTER_FALLBACK.y + Math.random() * 100 - 50;
-      socket.emit("send-reaction", { emoji, x, y });
-    },
-    [socket]
-  );
-
-  // ─── Export PNG ──────────────────────────────────────────────────
-  const handleExportPNG = useCallback(() => {
-    const canvas = document.querySelector("canvas");
-    if (!canvas) return;
-
-    const link = document.createElement("a");
-    link.download = `collabspace-${activeBoardName.replace(/\s+/g, "-")}.png`;
-    link.href = canvas.toDataURL("image/png");
-    link.click();
-    pushToast("Board exported as PNG", "success");
-  }, [activeBoardName, pushToast]);
 
   // ─── Render ──────────────────────────────────────────────────────
+  if (!isSupabaseConfigured) {
+    return (
+      <div className="app-container" style={{ padding: 40, fontFamily: "var(--font-sans)", color: "var(--text-primary)" }}>
+        <h1>⚠️ Supabase not configured</h1>
+        <p>
+          Copy <code>client/.env.example</code> to <code>client/.env</code> and fill in
+          <code> VITE_SUPABASE_URL</code> and <code>VITE_SUPABASE_ANON_KEY</code> from your
+          Supabase project.
+        </p>
+        <p>See <code>README.md</code> for full setup steps.</p>
+      </div>
+    );
+  }
+
   return (
     <div className="app-container">
-      {/* Top Bar */}
-      <motion.div
-        className="top-bar"
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ type: "spring", stiffness: 280, damping: 24, delay: 0.05 }}
-      >
-        <div className="top-bar-logo">
-          <span className="logo-emoji">🎨</span>
-          Collab<span>Space</span>
-        </div>
-        <div className="top-bar-divider" />
-        <div className="top-bar-board-name" title={activeBoardName}>
-          {activeBoardName}
-        </div>
-        <div className="top-bar-divider" />
-        <div className="top-bar-actions">
-          <button
-            className="top-bar-btn"
-            onClick={handleExportPNG}
-            title="Export current view as PNG"
-          >
-            ⬇ Export
-          </button>
-          <button
-            className="top-bar-btn danger"
-            onClick={handleClearBoard}
-            title="Clear all elements from this board"
-          >
-            🗑 Clear
-          </button>
-        </div>
-        <div className="top-bar-divider" />
-        <div className={`connection-status ${connected ? "online" : "offline"}`}>
-          <span className="status-dot" />
-          {connected ? "Live" : "Offline"}
-        </div>
-      </motion.div>
-
-      {/* Canvas */}
-      {activeBoardId && (
-        <DrawingBoard
-          elements={elements}
-          activeTool={activeTool}
-          activeColor={activeColor}
-          activeFontWeight={activeFontWeight}
-          onDrawElement={handleDrawElement}
-          onDeleteElement={handleDeleteElement}
-          onCursorMove={handleCursorMove}
-          onPushUndo={pushUndo}
-          onUndo={handleUndo}
-          onRedo={handleRedo}
-          onlineUsers={onlineUsers}
-          reactions={reactions}
-          laserPointers={laserPointers}
-          onLaserMove={handleLaserMove}
-          currentUserId={currentUserId}
-          currentUsername={currentUsername}
-        />
-      )}
-
-      {/* Toolbar */}
+      <DrawingBoard
+        elements={elements}
+        activeTool={activeTool}
+        activeColor={activeColor}
+        activeFontWeight={activeFontWeight}
+        onDrawElement={handleDrawElement}
+        onDeleteElement={handleDeleteElement}
+        onCursorMove={handleCursorMove}
+        onPushUndo={handlePushUndo}
+        onUndo={handleUndo}
+        onRedo={handleRedo}
+        onlineUsers={onlineUsers}
+        reactions={reactions}
+        laserPointers={laserPointers}
+        onLaserMove={handleLaserMove}
+        currentUserId={currentUserId}
+        currentUsername={currentUsername}
+      />
       <Toolbar
         activeTool={activeTool}
         activeColor={activeColor}
@@ -563,8 +443,6 @@ function App() {
         undoAvailable={undoCount > 0}
         redoAvailable={redoCount > 0}
       />
-
-      {/* Sidebar */}
       <Sidebar
         boards={boards}
         activeBoardId={activeBoardId}
@@ -576,34 +454,37 @@ function App() {
         onCreateBoard={handleCreateBoard}
         onDeleteBoard={handleDeleteBoard}
         onSendChat={handleSendChat}
-        onChatOpen={handleChatOpen}
+        onClearBoard={handleClearBoard}
+        onChatOpen={() => {
+          chatTabOpenRef.current = true;
+          setUnreadChatCount(0);
+        }}
+        onChatClose={() => {
+          chatTabOpenRef.current = false;
+        }}
+        activeBoardName={activeBoardName}
+        currentUsername={currentUsername}
+        connected={isSupabaseConfigured}
+        themeToggle={<ThemeToggle />}
       />
-
-      {/* Toasts */}
       <Toasts toasts={toasts} onDismiss={dismissToast} />
 
-      {/* Welcome Toast */}
       <AnimatePresence>
         {showWelcome && (
           <motion.div
             className="welcome-toast"
-            initial={{ opacity: 0, y: 20, scale: 0.92 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 20, scale: 0.92 }}
-            transition={{ type: "spring", stiffness: 280, damping: 22, delay: 0.4 }}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 20 }}
+            role="status"
+            aria-live="polite"
+            onClick={() => setShowWelcome(false)}
           >
-            <button
-              className="welcome-toast-close"
-              onClick={() => setShowWelcome(false)}
-              aria-label="Dismiss welcome"
-            >
-              ×
-            </button>
-            <h4>👋 Welcome, {currentUsername || "Explorer"}!</h4>
+            <h4>👋 Welcome, {currentUsername}!</h4>
             <div>
               Try the new <strong>Sticky Notes</strong> (<kbd>N</kbd>), <strong>Laser Pointer</strong> (<kbd>X</kbd>),
               and <strong>Reactions</strong> 🎉 in the bottom-right.
-              Use <kbd>⌘Z</kbd> / <kbd>⌘⇧Z</kbd> to undo/redo, <kbd>V</kbd> to select & drag.
+              Use <kbd>⌘Z</kbd> / <kbd>⌘⇧Z</kbd> to undo/redo, <kbd>V</kbd> to select &amp; drag.
               Scroll to zoom, Shift-drag to pan.
             </div>
           </motion.div>

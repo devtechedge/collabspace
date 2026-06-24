@@ -1,13 +1,26 @@
-<!DOCTYPE html>
-<html lang="en">
+<!doctype html>
+<html lang="en" data-theme="dark">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <meta name="description" content="CollabSpace — real-time collaborative whiteboard with sticky notes, chat, laser pointer, reactions, and a live minimap." />
-    <title>CollabSpace — Collaborative Whiteboard</title>
-    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎨</text></svg>" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#0a0e17" />
+    <meta name="description" content="CollabSpace — real-time multiplayer collaborative whiteboard" />
+    <title>CollabSpace</title>
+    <script>
+      // Anti-flash: set data-theme before paint based on stored preference or OS.
+      (function () {
+        try {
+          var stored = localStorage.getItem("collabspace.theme");
+          if (stored !== "light" && stored !== "dark") {
+            stored = window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+          }
+          document.documentElement.setAttribute("data-theme", stored);
+          var meta = document.querySelector('meta[name="theme-color"]');
+          if (meta) meta.setAttribute("content", stored === "light" ? "#f8fafc" : "#0a0e17");
+        } catch (_) {}
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
