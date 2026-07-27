@@ -14,7 +14,8 @@ Real-time multiplayer collaborative whiteboard with infinite canvas, presence, c
 
 **https://collabspace-mauve.vercel.app**
 
-> **Status:** Frontend is complete (dark/light theme, responsive, full drawing suite). Full multiplayer collaboration requires a Supabase project. Free tier is limited to 2 active projects — currently allocated to other portfolio apps. Without the env vars the app shows a clean configuration shell. Clone + supply your own `VITE_SUPABASE_URL` + anon key for a working realtime demo. Schema is idempotent and ready to paste into any free Supabase project.
+> **Status:** The production deploy currently shows a clean “Supabase not configured” shell. Full multiplayer collaboration requires a Supabase project; the free tier is limited to 2 active projects and those slots are already used by other portfolio apps.  
+> Locally the project runs fully: Docker + local Supabase (`npx supabase start`) + `npm run dev`. Schema is idempotent — paste `supabase/migrations/0001_init.sql` into any free Supabase project (or use the local stack) for a working realtime demo.
 
 ## Screenshots
 
