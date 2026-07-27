@@ -14,19 +14,18 @@ Real-time multiplayer collaborative whiteboard with infinite canvas, presence, c
 
 **https://collabspace-mauve.vercel.app**
 
-> **Status:** Frontend is complete (dark/light theme, responsive, full drawing suite). Full multiplayer collaboration requires a Supabase project. Free tier is limited to 2 active projects — currently allocated to other portfolio apps. Without the env vars the app expects a Supabase connection; clone the repo and supply your own `VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY` for a working realtime demo. Schema is idempotent and ready to paste into any free Supabase project.
+> **Status:** Frontend is complete (dark/light theme, responsive, full drawing suite). Full multiplayer collaboration requires a Supabase project. Free tier is limited to 2 active projects — currently allocated to other portfolio apps. Without the env vars the app shows a clean configuration shell. Clone + supply your own `VITE_SUPABASE_URL` + anon key for a working realtime demo. Schema is idempotent and ready to paste into any free Supabase project.
 
 ## Screenshots
 
-_Coming shortly — capture targets listed below._
+### Dark mode — Rooms
+![Dark mode Rooms view](docs/screenshots/Screenshot%202026-07-27%20082946.png)
 
-<!-- 
-Preferred set (dark mode):
-1. 01-hero.png — full board overview with multiple cursors + sticky notes + chat open
-2. 02-drawing.png — pencil / shapes + laser pointer in action
-3. 03-presence.png — sidebar presence indicators + floating reactions
-4. 04-mobile.png — responsive view (optional)
--->
+### Light mode — Chat
+![Light mode Chat view](docs/screenshots/Screenshot%202026-07-27%20082952.png)
+
+### Dark mode — Users
+![Dark mode Users view](docs/screenshots/Screenshot%202026-07-27%20082958.png)
 
 ## Features
 
