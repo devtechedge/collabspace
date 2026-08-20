@@ -2,6 +2,7 @@
 
 Real-time multiplayer collaborative whiteboard with infinite canvas, presence, chat, reactions, and a laser pointer.
 
+![CI](https://github.com/devtechedge/collabspace/actions/workflows/ci.yml/badge.svg)
 ![Live Demo](https://img.shields.io/badge/Live%20Demo-Vercel-black?logo=vercel)
 ![React](https://img.shields.io/badge/React-18-61dafb?logo=react)
 ![Vite](https://img.shields.io/badge/Vite-5-646cff?logo=vite)
@@ -82,6 +83,11 @@ v2 is fully client-side against Supabase — no custom backend process.
 | Identity             | `identity.ts` → localStorage               |
 
 See `client/src/lib/realtime.ts` for the single `joinBoard()` session that wires all four channels.
+
+
+## Engineering
+
+Phase B hardening: [`SECURITY.md`](SECURITY.md) (open RLS, no auth, payload allow-lists), `npm test` (node:test), `npm run typecheck`, Playwright smokes of the unconfigured Vercel shell, GitHub Actions CI, Dependabot (patch/minor only).
 
 ## License
 

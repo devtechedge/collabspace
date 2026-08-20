@@ -1,14 +1,20 @@
 {
   "name": "collabspace",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "private": true,
   "description": "Real-time multiplayer collaborative whiteboard — Vite + Supabase + Vercel",
   "scripts": {
     "dev": "npm run dev --workspace=collabspace-client",
     "build": "npm run build --workspace=collabspace-client",
-    "start": "npm run dev --workspace=collabspace-client"
+    "start": "npm run dev --workspace=collabspace-client",
+    "typecheck": "npm run typecheck --workspace=collabspace-client",
+    "test": "node --test --experimental-strip-types client/src/lib/validation.test.ts client/src/lib/identity.test.ts",
+    "test:e2e": "playwright test"
   },
   "workspaces": [
     "client"
-  ]
+  ],
+  "devDependencies": {
+    "@playwright/test": "^1.48.0"
+  }
 }
