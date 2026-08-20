@@ -1,5 +1,4 @@
 import { useRef, useEffect, useCallback, useState } from "react";
-import { v4 as uuidv4 } from "uuid";
 import { AnimatePresence } from "framer-motion";
 import {
   CanvasElement,
@@ -460,7 +459,7 @@ function DrawingBoard({
       if (activeTool === "STICKY") {
         const colorIdx = Math.floor(Math.random() * STICKY_PALETTE.length);
         const newSticky: StickyElement = {
-          id: uuidv4(),
+          id: crypto.randomUUID(),
           type: "STICKY",
           x: pt.x,
           y: pt.y,
@@ -508,7 +507,7 @@ function DrawingBoard({
       if (activeTool === "ERASER") {
         isDrawingRef.current = true;
         const newElement: CanvasElement = {
-          id: uuidv4(),
+          id: crypto.randomUUID(),
           type: "ERASER",
           x: pt.x,
           y: pt.y,
@@ -544,7 +543,7 @@ function DrawingBoard({
       isDrawingRef.current = true;
 
       const newElement: CanvasElement = {
-        id: uuidv4(),
+        id: crypto.randomUUID(),
         type: activeTool as CanvasElement["type"],
         x: pt.x,
         y: pt.y,
@@ -752,7 +751,7 @@ function DrawingBoard({
       }
 
       const newElement: CanvasElement = {
-        id: uuidv4(),
+        id: crypto.randomUUID(),
         type: "TEXT",
         x: textInput.canvasX,
         y: textInput.canvasY,

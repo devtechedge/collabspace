@@ -14,6 +14,7 @@
 
 import { supabase } from "./supabase";
 import { CanvasElement, Point } from "../types";
+import { sanitizeElement } from "./validation";
 
 interface ElementRow {
   id: string;
@@ -30,35 +31,37 @@ interface ElementRow {
   created_at: string;
 }
 
-function rowToElement(row: ElementRow): CanvasElement {
-  return {
+function rowToElement(row: ElementRow): CanvasElement | null {
+  return sanitizeElement({
     id: row.id,
-    type: row.type as CanvasElement["type"],
+    type: row.type,
     x: row.x,
     y: row.y,
     width: row.width,
     height: row.height,
     points: row.points ?? [],
     color: row.color,
-    fontWeight: row.font_weight,
-    textContent: row.text_content,
-    createdAt: row.created_at,
-  };
+    font_weight: row.font_weight,
+    text_content: row.text_content,
+    created_at: row.created_at,
+  });
 }
 
 function elementToRow(el: CanvasElement, boardId: string) {
+  const safe = sanitizeElement(el);
+  if (!safe) throw new Error("Invalid canvas element");
   return {
-    id: el.id,
+    id: safe.id,
     board_id: boardId,
-    type: el.type,
-    x: el.x ?? 0,
-    y: el.y ?? 0,
-    width: el.width ?? 0,
-    height: el.height ?? 0,
-    points: el.points ?? [],
-    color: el.color ?? "#ffffff",
-    font_weight: el.fontWeight ?? "normal",
-    text_content: el.textContent ?? "",
+    type: safe.type,
+    x: safe.x ?? 0,
+    y: safe.y ?? 0,
+    width: safe.width ?? 0,
+    height: safe.height ?? 0,
+    points: safe.points ?? [],
+    color: safe.color ?? "#ffffff",
+    font_weight: safe.fontWeight ?? "normal",
+    text_content: safe.textContent ?? "",
   };
 }
 
@@ -71,7 +74,9 @@ export async function fetchElements(boardId: string): Promise<CanvasElement[]> {
     .order("created_at", { ascending: true });
 
   if (error) throw error;
-  return (data ?? []).map(rowToElement);
+  return (data ?? [])
+    .map((row) => rowToElement(row as ElementRow))
+    .filter((el): el is CanvasElement => el !== null);
 }
 
 // ─── Mutations (called by App.tsx when user draws / deletes / clears) ─
@@ -114,12 +119,18 @@ export function subscribeCanvas(
     .on(
       "postgres_changes",
       { event: "INSERT", schema: "public", table: "elements", filter: boardFilter },
-      (payload) => cb.onUpsert(rowToElement(payload.new as ElementRow))
+      (payload) => {
+        const el = rowToElement(payload.new as ElementRow);
+        if (el) cb.onUpsert(el);
+      }
     )
     .on(
       "postgres_changes",
       { event: "UPDATE", schema: "public", table: "elements", filter: boardFilter },
-      (payload) => cb.onUpsert(rowToElement(payload.new as ElementRow))
+      (payload) => {
+        const el = rowToElement(payload.new as ElementRow);
+        if (el) cb.onUpsert(el);
+      }
     )
     .on(
       "postgres_changes",

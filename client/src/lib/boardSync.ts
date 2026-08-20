@@ -5,6 +5,7 @@
 
 import { supabase } from "./supabase";
 import { Board } from "../types";
+import { sanitizeBoardName } from "./validation";
 
 export async function listBoards(): Promise<Board[]> {
   const { data, error } = await supabase
@@ -30,7 +31,7 @@ export async function listBoards(): Promise<Board[]> {
 
   return (data ?? []).map((b) => ({
     id: b.id,
-    name: b.name,
+    name: sanitizeBoardName(b.name) ?? "Untitled Board",
     createdAt: b.created_at,
     updatedAt: b.updated_at,
     _count: { elements: counts.get(b.id) ?? 0 },
@@ -38,16 +39,17 @@ export async function listBoards(): Promise<Board[]> {
 }
 
 export async function createBoard(name: string): Promise<Board> {
+  const safe = sanitizeBoardName(name) ?? "Untitled Board";
   const { data, error } = await supabase
     .from("boards")
-    .insert({ name })
+    .insert({ name: safe })
     .select("id, name, created_at, updated_at")
     .single();
 
   if (error) throw error;
   return {
     id: data.id,
-    name: data.name,
+    name: sanitizeBoardName(data.name) ?? safe,
     createdAt: data.created_at,
     updatedAt: data.updated_at,
     _count: { elements: 0 },
@@ -55,7 +57,7 @@ export async function createBoard(name: string): Promise<Board> {
 }
 
 export async function renameBoard(boardId: string, name: string): Promise<void> {
-  const trimmed = name.trim();
+  const trimmed = sanitizeBoardName(name);
   if (!trimmed) throw new Error("Board name cannot be empty");
   const { error } = await supabase
     .from("boards")

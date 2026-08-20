@@ -398,8 +398,12 @@ function App() {
   // ─── Render ──────────────────────────────────────────────────────
   if (!isSupabaseConfigured) {
     return (
-      <div className="app-container" style={{ padding: 40, fontFamily: "var(--font-sans)", color: "var(--text-primary)" }}>
-        <h1>⚠️ Supabase not configured</h1>
+      <div
+        className="app-container"
+        data-testid="supabase-unconfigured"
+        style={{ padding: 40, fontFamily: "var(--font-sans)", color: "var(--text-primary)" }}
+      >
+        <h1 data-testid="site-title">⚠️ Supabase not configured</h1>
         <p>
           Copy <code>client/.env.example</code> to <code>client/.env</code> and fill in
           <code> VITE_SUPABASE_URL</code> and <code>VITE_SUPABASE_ANON_KEY</code> from your
@@ -411,7 +415,7 @@ function App() {
   }
 
   return (
-    <div className="app-container">
+    <div className="app-container" data-testid="app-shell">
       <DrawingBoard
         elements={elements}
         activeTool={activeTool}

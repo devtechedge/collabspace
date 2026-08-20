@@ -6,6 +6,7 @@
 
 import { supabase } from "./supabase";
 import { ChatMessage } from "../types";
+import { sanitizeChatText, sanitizeColor, sanitizeUsername } from "./validation";
 
 interface MessageRow {
   id: string;
@@ -17,19 +18,20 @@ interface MessageRow {
   created_at: string;
 }
 
-function rowToMessage(row: MessageRow): ChatMessage {
+function rowToMessage(row: MessageRow): ChatMessage | null {
+  const text = sanitizeChatText(row.text);
+  if (!text) return null;
+  const username = sanitizeUsername(row.username) ?? "Guest";
   return {
     id: row.id,
     boardId: row.board_id,
     userId: row.user_id,
-    username: row.username,
-    userColor: row.user_color,
-    text: row.text,
+    username,
+    userColor: sanitizeColor(row.user_color, "#6366f1"),
+    text,
     createdAt: row.created_at,
   };
 }
-
-const MAX_TEXT = 1000;
 
 // ─── Initial fetch (last 200) ─────────────────────────────────────
 export async function fetchMessages(boardId: string): Promise<ChatMessage[]> {
@@ -41,7 +43,9 @@ export async function fetchMessages(boardId: string): Promise<ChatMessage[]> {
     .limit(200);
 
   if (error) throw error;
-  return (data ?? []).map(rowToMessage);
+  return (data ?? [])
+    .map((row) => rowToMessage(row as MessageRow))
+    .filter((m): m is ChatMessage => m !== null);
 }
 
 // ─── Send ─────────────────────────────────────────────────────────
@@ -50,15 +54,14 @@ export async function sendMessage(
   author: { userId: string; username: string; color: string },
   text: string
 ): Promise<void> {
-  const trimmed = (text ?? "").trim();
+  const trimmed = sanitizeChatText(text);
   if (!trimmed) return;
-  if (trimmed.length > MAX_TEXT) return;
 
   const { error } = await supabase.from("messages").insert({
     board_id: boardId,
     user_id: author.userId,
-    username: author.username,
-    user_color: author.color,
+    username: sanitizeUsername(author.username) ?? "Guest",
+    user_color: sanitizeColor(author.color, "#6366f1"),
     text: trimmed,
   });
   if (error) throw error;
@@ -76,7 +79,10 @@ export function subscribeChat(
     .on(
       "postgres_changes",
       { event: "INSERT", schema: "public", table: "messages", filter: boardFilter },
-      (payload) => onMessage(rowToMessage(payload.new as MessageRow))
+      (payload) => {
+        const msg = rowToMessage(payload.new as MessageRow);
+        if (msg) onMessage(msg);
+      }
     )
     .subscribe();
 

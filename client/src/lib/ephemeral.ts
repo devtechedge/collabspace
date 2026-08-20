@@ -6,6 +6,13 @@
 import { supabase } from "./supabase";
 import { RealtimeChannel } from "@supabase/supabase-js";
 import { Reaction, LaserPointer } from "../types";
+import {
+  ALLOWED_REACTION_EMOJIS,
+  clampCoord,
+  isAllowedReactionEmoji,
+  sanitizeColor,
+  sanitizeUsername,
+} from "./validation";
 
 export interface Author {
   userId: string;
@@ -13,7 +20,7 @@ export interface Author {
   color: string;
 }
 
-export const ALLOWED_REACTION_EMOJIS = ["🎉", "👍", "❤️", "💡", "🚀", "🔥", "👏", "😮"];
+export { ALLOWED_REACTION_EMOJIS };
 
 // ─── One channel per board, multiplexed by event type ─────────────
 // We attach broadcast listeners for cursors, reactions, laser on the
@@ -39,7 +46,8 @@ export function joinEphemeralChannel(
       if (payload?.author && payload?.cursor) handlers.onCursor(payload);
     })
     .on("broadcast", { event: "reaction" }, ({ payload }) => {
-      if (payload) handlers.onReaction(payload as Reaction);
+      if (!payload || !isAllowedReactionEmoji(payload.emoji)) return;
+      handlers.onReaction(payload as Reaction);
     })
     .on("broadcast", { event: "laser" }, ({ payload }) => {
       if (payload) handlers.onLaser(payload as LaserPointer & { username: string; color: string });
@@ -61,7 +69,7 @@ export function sendCursor(
   channel.send({
     type: "broadcast",
     event: "cursor",
-    payload: { author, cursor },
+    payload: { author, cursor: { x: clampCoord(cursor.x), y: clampCoord(cursor.y) } },
   });
 }
 
@@ -70,18 +78,18 @@ export function sendReaction(
   author: Author,
   reaction: { emoji: string; x: number; y: number }
 ): void {
-  if (!ALLOWED_REACTION_EMOJIS.includes(reaction.emoji)) return;
+  if (!isAllowedReactionEmoji(reaction.emoji)) return;
   channel.send({
     type: "broadcast",
     event: "reaction",
     payload: {
       id: crypto.randomUUID(),
       userId: author.userId,
-      username: author.username,
-      userColor: author.color,
+      username: sanitizeUsername(author.username) ?? "Guest",
+      userColor: sanitizeColor(author.color, "#6366f1"),
       emoji: reaction.emoji,
-      x: reaction.x,
-      y: reaction.y,
+      x: clampCoord(reaction.x),
+      y: clampCoord(reaction.y),
       createdAt: Date.now(),
     },
   });
@@ -97,11 +105,11 @@ export function sendLaser(
     event: "laser",
     payload: {
       userId: author.userId,
-      username: author.username,
-      color: author.color,
-      x: data.x,
-      y: data.y,
-      active: data.active,
+      username: sanitizeUsername(author.username) ?? "Guest",
+      color: sanitizeColor(author.color, "#6366f1"),
+      x: clampCoord(data.x),
+      y: clampCoord(data.y),
+      active: Boolean(data.active),
     },
   });
 }
