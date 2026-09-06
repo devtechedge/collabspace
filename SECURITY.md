@@ -1,6 +1,6 @@
 # Security Assessment — CollabSpace
 
-**Date:** 2026-08-21  
+**Date:** 2026-09-06  
 **Scope:** Auth, XSS, injection, RLS, secrets, CORS, dependency risk  
 **Context:** Public Vercel deploy is a **frontend-only shell** (no Supabase env). Full multiplayer needs a Supabase project. Schema in `supabase/migrations/0001_init.sql` is **open RLS** (no auth).
 
@@ -147,3 +147,11 @@ npm run typecheck
 npm run test:e2e
 npm audit --omit=dev
 ```
+
+## Repository visibility
+
+This repository is currently **public** for portfolio review. When the open-source
+build story is no longer needed, **the GitHub repo will go private**. Making the
+repo private reduces source disclosure; it does **not** replace strong production
+secrets, auth allow-lists, webhook signatures, or Vercel/Actions environment
+hygiene. Rotate any credential that was pasted into chat, tickets, or screenshots.
