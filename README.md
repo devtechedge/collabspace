@@ -42,6 +42,10 @@ Real-time multiplayer collaborative whiteboard with infinite canvas, presence, c
 - **Accessible** — focus-visible rings, ARIA tablist, prefers-reduced-motion, prefers-contrast
 - **Anonymous identity** — random user stored in `localStorage` (auth-ready later)
 
+## Related
+
+Sibling demo: [collabspace-express](https://github.com/devtechedge/collabspace-express) — Express + Vite whiteboard without the Supabase realtime stack.
+
 ## Tech Stack
 
 | Layer        | Tech                                              |
