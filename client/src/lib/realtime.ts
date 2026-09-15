@@ -77,7 +77,7 @@ export async function joinBoard(
   //    (Cursors go through presence; broadcast cursor is kept available
   //    via sendCursor() in ephemeral.ts but not wired here.)
   const ephemeral = joinEphemeralChannel(boardId, {
-    onCursor: () => {}, // unused — cursors ride on presence
+    onCursor: () => {}, // unused - cursors ride on presence
     onReaction: cb.onReaction,
     onLaser: (p) => cb.onLaser({
       userId: p.userId,

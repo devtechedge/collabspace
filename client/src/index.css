@@ -1,11 +1,11 @@
 /* ═══════════════════════════════════════════════════════════════════
-   CollabSpace — Design System v2.1
+   CollabSpace - Design System v2.1
    Dark + Light modes · Design tokens · 5-breakpoint responsive
    ═══════════════════════════════════════════════════════════════════ */
 
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500&display=swap');
 
-/* ─── Tokens (Dark — default) ─────────────────────────────────── */
+/* ─── Tokens (Dark - default) ─────────────────────────────────── */
 :root,
 [data-theme="dark"] {
   /* ─── Surfaces ─── */
@@ -108,7 +108,7 @@
 
 /* ─── Static Tokens (theme-independent) ───────────────────────── */
 :root {
-  /* Spacing scale — 4px grid */
+  /* Spacing scale - 4px grid */
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
@@ -1796,15 +1796,15 @@ button:focus-visible,
 
 /* ─── Responsive: 5 breakpoints ───────────────────────────────── */
 
-/* xl: ≥1280px — default styling above */
+/* xl: ≥1280px - default styling above */
 
-/* lg: 1024–1279 — slightly tighter sidebar */
+/* lg: 1024–1279 - slightly tighter sidebar */
 @media (max-width: 1279px) {
   .sidebar { width: 260px; }
   .minimap { width: 180px; height: 118px; }
 }
 
-/* md: 768–1023 — collapse sidebar to icon rail, hide minimap */
+/* md: 768–1023 - collapse sidebar to icon rail, hide minimap */
 @media (max-width: 1023px) {
   .sidebar {
     width: 64px;
@@ -1832,7 +1832,7 @@ button:focus-visible,
   .top-bar { gap: var(--space-2); padding: var(--space-2) var(--space-3); }
 }
 
-/* sm: 640–767 — sidebar becomes bottom drawer, toolbar becomes horizontal */
+/* sm: 640–767 - sidebar becomes bottom drawer, toolbar becomes horizontal */
 @media (max-width: 767px) {
   :root {
     --sidebar-width: 100%;
@@ -1885,7 +1885,7 @@ button:focus-visible,
   .welcome-toast { bottom: 80px; left: var(--space-3); right: var(--space-3); max-width: none; }
 }
 
-/* xs: <640 — full mobile, hide secondary text */
+/* xs: <640 - full mobile, hide secondary text */
 @media (max-width: 639px) {
   .top-bar-divider { display: none; }
   .connection-status { display: none; }

@@ -1,7 +1,7 @@
 // ─── Ephemeral events: cursor / reactions / laser pointer ─────────
 // Replaces server's socket broadcasts. NOT persisted to DB.
 // Supabase Realtime "broadcast" sends a typed event to all subscribers
-// of the same channel — perfect for fire-and-forget signals.
+// of the same channel - perfect for fire-and-forget signals.
 
 import { supabase } from "./supabase";
 import { RealtimeChannel } from "@supabase/supabase-js";

@@ -24,7 +24,7 @@ export function joinPresenceChannel(
   author: Author,
   onChange: (users: UserPresence[]) => void
 ): PresenceSession {
-  // Mutable full state — always re-sent in its entirety on each track().
+  // Mutable full state - always re-sent in its entirety on each track().
   let state = {
     userId: author.userId,
     username: author.username,
@@ -60,7 +60,7 @@ export function joinPresenceChannel(
   return {
     updateCursor: (cursor) => {
       state = { ...state, cursor };
-      // track() rejects if not subscribed yet — safe to ignore.
+      // track() rejects if not subscribed yet - safe to ignore.
       channel.track(state).catch(() => {});
     },
     leave: () => {

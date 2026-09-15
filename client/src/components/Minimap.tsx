@@ -187,7 +187,7 @@ export default function Minimap({
   };
 
   return (
-    <div className="minimap" role="button" tabIndex={0} aria-label="Minimap — click to navigate">
+    <div className="minimap" role="button" tabIndex={0} aria-label="Minimap - click to navigate">
       <span className="minimap-label">Overview</span>
       <canvas
         ref={canvasRef}

@@ -16,35 +16,35 @@ Real-time multiplayer collaborative whiteboard with infinite canvas, presence, c
 **https://collabspace-mauve.vercel.app**
 
 > **Status:** The production deploy currently shows a clean “Supabase not configured” shell. Full multiplayer collaboration requires a Supabase project; the free tier is limited to 2 active projects and those slots are already used by other portfolio apps.  
-> Locally the project runs fully: Docker + local Supabase (`npx supabase start`) + `npm run dev`. Schema is idempotent — paste `supabase/migrations/0001_init.sql` into any free Supabase project (or use the local stack) for a working realtime demo.
+> Locally the project runs fully: Docker + local Supabase (`npx supabase start`) + `npm run dev`. Schema is idempotent - paste `supabase/migrations/0001_init.sql` into any free Supabase project (or use the local stack) for a working realtime demo.
 
 ## Screenshots
 
-### Dark mode — Rooms
+### Dark mode - Rooms
 ![Dark mode Rooms view](docs/screenshots/Screenshot%202026-07-27%20082946.png)
 
-### Light mode — Chat
+### Light mode - Chat
 ![Light mode Chat view](docs/screenshots/Screenshot%202026-07-27%20082952.png)
 
-### Dark mode — Users
+### Dark mode - Users
 ![Dark mode Users view](docs/screenshots/Screenshot%202026-07-27%20082958.png)
 
 ## Features
 
-- **Infinite canvas** — pan (Shift-drag / middle-click), zoom (scroll), minimap
-- **Drawing tools** — Pencil, Line, Rectangle, Circle, Text, Sticky note, Eraser, Select, Laser pointer
-- **Real-time multiplayer** — live cursors with name labels via Supabase Presence
-- **Persistent elements & chat** — Postgres Changes fan-out (no custom Socket server)
-- **Ephemeral signals** — floating emoji reactions + laser pointer via Realtime Broadcast
+- **Infinite canvas** - pan (Shift-drag / middle-click), zoom (scroll), minimap
+- **Drawing tools** - Pencil, Line, Rectangle, Circle, Text, Sticky note, Eraser, Select, Laser pointer
+- **Real-time multiplayer** - live cursors with name labels via Supabase Presence
+- **Persistent elements & chat** - Postgres Changes fan-out (no custom Socket server)
+- **Ephemeral signals** - floating emoji reactions + laser pointer via Realtime Broadcast
 - **Undo / Redo** with full history stack (`⌘Z` / `⌘⇧Z`)
 - **Dark / light theme** with system preference + anti-flash
-- **Responsive** — 5 breakpoints, mobile bottom-drawer sidebar, 44 px touch targets
-- **Accessible** — focus-visible rings, ARIA tablist, prefers-reduced-motion, prefers-contrast
-- **Anonymous identity** — random user stored in `localStorage` (auth-ready later)
+- **Responsive** - 5 breakpoints, mobile bottom-drawer sidebar, 44 px touch targets
+- **Accessible** - focus-visible rings, ARIA tablist, prefers-reduced-motion, prefers-contrast
+- **Anonymous identity** - random user stored in `localStorage` (auth-ready later)
 
 ## Related
 
-Sibling demo: [collabspace-express](https://github.com/devtechedge/collabspace-express) — Express + Vite whiteboard without the Supabase realtime stack.
+Sibling demo: [collabspace-express](https://github.com/devtechedge/collabspace-express) - Express + Vite whiteboard without the Supabase realtime stack.
 
 ## Tech Stack
 
@@ -66,7 +66,7 @@ cp client/.env.example client/.env
 # Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY
 
 # 3. Schema (paste supabase/migrations/0001_init.sql into Supabase SQL Editor)
-# Idempotent — safe to re-run
+# Idempotent - safe to re-run
 
 # 4. Dev server
 npm run dev
@@ -76,7 +76,7 @@ npm run dev
 ## Architecture (v1 → v2)
 
 Original v1 used Express + Socket.io + Prisma + SQLite.  
-v2 is fully client-side against Supabase — no custom backend process.
+v2 is fully client-side against Supabase - no custom backend process.
 
 | Concern              | v2 implementation                          |
 |----------------------|--------------------------------------------|

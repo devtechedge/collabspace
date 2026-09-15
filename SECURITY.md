@@ -1,4 +1,4 @@
-# Security Assessment — CollabSpace
+# Security Assessment - CollabSpace
 
 **Date:** 2026-09-06  
 **Scope:** Auth, XSS, injection, RLS, secrets, CORS, dependency risk  
@@ -11,7 +11,7 @@
 | Area | Risk | Notes |
 |------|------|--------|
 | Authentication | **N/A (by design)** | Anonymous identity in `localStorage` only |
-| Authorization / RLS | **High if a public Supabase project is attached** | Policies are `using (true)` / `with check (true)` — any visitor can read/write every board |
+| Authorization / RLS | **High if a public Supabase project is attached** | Policies are `using (true)` / `with check (true)` - any visitor can read/write every board |
 | XSS | **Low** | No `dangerouslySetInnerHTML`; React text nodes; chat/board names sanitized |
 | Injection (SQL) | **Low** | Supabase client parameterized REST; no raw SQL in the app |
 | Realtime payload | **Medium (if public backend)** | Elements / chat / broadcast events are untrusted; client now allow-lists types, emojis, coords, text length |
@@ -19,9 +19,9 @@
 | CORS | **N/A** | No custom HTTP API; Supabase hosted endpoints |
 | Build | **Hardened** | `npm run typecheck` is `tsc --noEmit`; CI runs unit + e2e |
 
-**Overall (public Vercel demo):** Low residual risk — no backend secrets, no attached database, unconfigured shell only.
+**Overall (public Vercel demo):** Low residual risk - no backend secrets, no attached database, unconfigured shell only.
 
-**Overall (a live Supabase project with this schema):** High — unauthenticated shared whiteboard. Treat any connected project as a public pad, not a private workspace.
+**Overall (a live Supabase project with this schema):** High - unauthenticated shared whiteboard. Treat any connected project as a public pad, not a private workspace.
 
 ---
 
@@ -83,7 +83,7 @@ Tighten when adding Auth: drop the open policies, key rows to `auth.uid()`, and 
 
 **Findings**
 - `.gitignore` excludes `.env`, `client/.env`, `.env*.local`.
-- `.env.example` documents `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` — no credentials.
+- `.env.example` documents `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` - no credentials.
 - The anon / publishable key is the public browser key by design.
 - Production Vercel currently has **no** Supabase env, so the live URL cannot talk to a database.
 
@@ -97,7 +97,7 @@ Tighten when adding Auth: drop the open policies, key rows to `auth.uid()`, and 
 | Vite `npm run dev` | None | Local only |
 | Supabase REST / Realtime | Anon key | Open RLS if a project is wired |
 
-`vercel.json` SPA rewrite is routing only — no serverless API.
+`vercel.json` SPA rewrite is routing only - no serverless API.
 
 ---
 

@@ -267,7 +267,7 @@ function DrawingBoard({
     ctx.translate(pan.x, pan.y);
     ctx.scale(zoom, zoom);
 
-    // Draw all elements (skip STICKY — those render as HTML overlays)
+    // Draw all elements (skip STICKY - those render as HTML overlays)
     for (const element of elements) {
       if (element.type === "STICKY") continue;
       drawElement(ctx, element);
@@ -278,7 +278,7 @@ function DrawingBoard({
       drawElement(ctx, currentElementRef.current);
     }
 
-    // Draw selection highlight (skip for STICKY — has its own outline)
+    // Draw selection highlight (skip for STICKY - has its own outline)
     if (selectedElementId) {
       const selected = elements.find((e) => e.id === selectedElementId);
       if (selected && selected.type !== "STICKY") {
@@ -381,7 +381,7 @@ function DrawingBoard({
         el.height = lines.length * 20;
         break;
       }
-      // STICKY handled as HTML overlay — not drawn on canvas
+      // STICKY handled as HTML overlay - not drawn on canvas
       case "STICKY":
         break;
     }
