@@ -93,7 +93,7 @@ Tighten when adding Auth: drop the open policies, key rows to `auth.uid()`, and 
 
 | Surface | Auth | Notes |
 |---------|------|--------|
-| `https://collabspace-mauve.vercel.app` | None | Static SPA; shows “Supabase not configured” without env |
+| `https://collabspace-mauve.vercel.app` | None | Static SPA; without env it runs local demo mode (canvas state in `localStorage`, nothing leaves the browser) |
 | Vite `npm run dev` | None | Local only |
 | Supabase REST / Realtime | Anon key | Open RLS if a project is wired |
 

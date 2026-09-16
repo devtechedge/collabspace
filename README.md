@@ -15,8 +15,9 @@ Real-time multiplayer collaborative whiteboard with infinite canvas, presence, c
 
 **https://collabspace-mauve.vercel.app**
 
-> **Status:** The production deploy currently shows a clean “Supabase not configured” shell. Full multiplayer collaboration requires a Supabase project; the free tier is limited to 2 active projects and those slots are already used by other portfolio apps.  
-> Locally the project runs fully: Docker + local Supabase (`npx supabase start`) + `npm run dev`. Schema is idempotent - paste `supabase/migrations/0001_init.sql` into any free Supabase project (or use the local stack) for a working realtime demo.
+> **Status:** The production deploy runs in **local demo mode**: it has no Supabase credentials attached, so the app boots a fully working single-user canvas instead of a configuration warning. Drawing, sticky notes, rooms, undo/redo and reactions all work and persist to `localStorage`, so a visitor can use the board immediately. Multiplayer features (shared rooms, live cursors and presence, chat broadcast) require a Supabase project; the free tier allows 2 active projects and those slots are already used by other portfolio apps.
+>
+> Add `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` and the same deploy switches to full multiplayer with no other change. Locally, Docker + local Supabase (`npx supabase start`) + `npm run dev` gives the complete stack. The schema is idempotent: paste `supabase/migrations/0001_init.sql` into any free Supabase project (or use the local stack).
 
 ## Screenshots
 
@@ -41,6 +42,7 @@ Real-time multiplayer collaborative whiteboard with infinite canvas, presence, c
 - **Responsive** - 5 breakpoints, mobile bottom-drawer sidebar, 44 px touch targets
 - **Accessible** - focus-visible rings, ARIA tablist, prefers-reduced-motion, prefers-contrast
 - **Anonymous identity** - random user stored in `localStorage` (auth-ready later)
+- **Graceful local demo** - with no Supabase credentials the board still runs: elements and rooms persist to `localStorage` and the shell says so, instead of dead-ending on a configuration error
 
 ## Related
 
@@ -85,13 +87,14 @@ v2 is fully client-side against Supabase - no custom backend process.
 | Cursors / presence   | Supabase Realtime Presence                 |
 | Reactions / laser    | Realtime Broadcast (ephemeral)             |
 | Identity             | `identity.ts` → localStorage               |
+| Local demo (no env)  | `localBoard.ts` → localStorage boards + elements, no network |
 
 See `client/src/lib/realtime.ts` for the single `joinBoard()` session that wires all four channels.
 
 
 ## Engineering
 
-Phase B hardening: [`SECURITY.md`](SECURITY.md) (open RLS, no auth, payload allow-lists), `npm test` (node:test), `npm run typecheck`, Playwright smokes of the unconfigured Vercel shell, GitHub Actions CI, Dependabot (patch/minor only).
+Phase B hardening: [`SECURITY.md`](SECURITY.md) (open RLS, no auth, payload allow-lists), `npm test` (node:test), `npm run typecheck`, Playwright smokes of the local demo shell (including stroke persistence across reload), GitHub Actions CI, Dependabot (patch/minor only).
 
 ## License
 

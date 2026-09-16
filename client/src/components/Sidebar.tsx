@@ -20,6 +20,8 @@ interface SidebarProps {
   activeBoardName: string;
   currentUsername: string;
   connected: boolean;
+  /** True when the app runs without Supabase: local-only boards and chat. */
+  demoMode?: boolean;
   themeToggle?: ReactNode;
 }
 
@@ -44,6 +46,7 @@ function Sidebar({
   activeBoardName,
   currentUsername,
   connected,
+  demoMode = false,
   themeToggle,
 }: SidebarProps) {
   const [tab, setTab] = useState<Tab>("rooms");
@@ -217,6 +220,11 @@ function Sidebar({
               transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
               className="sidebar-section"
             >
+              {demoMode && (
+                <p className="demo-note" data-testid="chat-demo-note">
+                  Local demo mode: messages stay in this tab and are not broadcast to others.
+                </p>
+              )}
               <ChatPanel messages={chatMessages} currentUserId={currentUserId} onSend={onSendChat} />
             </motion.div>
           )}

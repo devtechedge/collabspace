@@ -1,20 +1,65 @@
 import { expect, test } from "@playwright/test";
 
-test.describe("unconfigured production shell", () => {
-  test("shows the Supabase not configured banner", async ({ page }) => {
+// The deploy runs without Supabase credentials, so the app boots into local
+// demo mode. These specs pin that behaviour: a visitor gets a working canvas,
+// not a configuration warning.
+const LOCAL_BOARD_KEY = "collabspace:local-board:local-scratch";
+
+test.describe("local demo shell", () => {
+  test("renders a usable board instead of a config warning", async ({ page }) => {
     await page.goto("/");
     await expect(page).toHaveTitle(/CollabSpace/);
-    const banner = page.getByTestId("supabase-unconfigured");
-    await expect(banner).toBeVisible();
-    await expect(page.getByTestId("site-title")).toContainText("Supabase not configured");
-    await expect(banner).toContainText("VITE_SUPABASE_URL");
-    await expect(banner).toContainText("VITE_SUPABASE_ANON_KEY");
+    await expect(page.getByTestId("app-shell")).toBeVisible();
+    await expect(page.getByText("Supabase not configured")).toHaveCount(0);
+    await expect(page.locator('[aria-label="Drawing tools"]')).toBeVisible();
+    await expect(page.getByRole("button", { name: "Create new room" })).toBeVisible();
   });
 
-  test("does not render the full board chrome without env", async ({ page }) => {
+  test("labels the board as local-only and dismisses", async ({ page }) => {
     await page.goto("/");
-    await expect(page.getByTestId("app-shell")).toHaveCount(0);
-    await expect(page.getByRole("button", { name: /New Room/i })).toHaveCount(0);
+    const banner = page.getByTestId("demo-mode-banner");
+    await expect(banner).toBeVisible();
+    await expect(banner).toContainText("Local demo mode");
+    await expect(banner).toContainText("Supabase");
+
+    await page.getByRole("button", { name: "Dismiss demo mode notice" }).click();
+    await expect(banner).toHaveCount(0);
+  });
+
+  test("keeps a drawn stroke across a reload", async ({ page }) => {
+    await page.goto("/");
+    const canvas = page.locator("canvas").first();
+    await expect(canvas).toBeVisible();
+
+    const box = await canvas.boundingBox();
+    expect(box).toBeTruthy();
+    const cx = box!.x + box!.width / 2;
+    const cy = box!.y + box!.height / 2;
+
+    await page.mouse.move(cx, cy);
+    await page.mouse.down();
+    await page.mouse.move(cx + 120, cy + 80, { steps: 12 });
+    await page.mouse.up();
+
+    const stored = await page.evaluate((key) => {
+      const raw = window.localStorage.getItem(key);
+      return raw ? (JSON.parse(raw) as unknown[]).length : 0;
+    }, LOCAL_BOARD_KEY);
+    expect(stored).toBeGreaterThan(0);
+
+    await page.reload();
+    await expect(page.getByTestId("app-shell")).toBeVisible();
+    const afterReload = await page.evaluate((key) => {
+      const raw = window.localStorage.getItem(key);
+      return raw ? (JSON.parse(raw) as unknown[]).length : 0;
+    }, LOCAL_BOARD_KEY);
+    expect(afterReload).toBe(stored);
+  });
+
+  test("marks chat as local-only", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("tab", { name: "Chat" }).click();
+    await expect(page.getByTestId("chat-demo-note")).toBeVisible();
   });
 
   test("exposes a branded favicon", async ({ page }) => {

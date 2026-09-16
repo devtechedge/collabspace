@@ -16,6 +16,16 @@ import {
   LaserPointer,
 } from "./types";
 import { isSupabaseConfigured } from "./lib/supabase";
+import {
+  defaultBoard,
+  loadLocalBoards,
+  loadLocalElements,
+  mergeElement,
+  removeLocalBoard,
+  saveLocalBoards,
+  saveLocalElements,
+} from "./lib/localBoard";
+import { sanitizeChatText, sanitizeColor, sanitizeUsername } from "./lib/validation";
 import { loadIdentity } from "./lib/identity";
 import { joinBoard, BoardSession } from "./lib/realtime";
 import {
@@ -34,6 +44,11 @@ import { sendMessage } from "./lib/chatSync";
 const CANVAS_CENTER_FALLBACK = { x: 400, y: 300 };
 
 function App() {
+  // When Supabase credentials are absent the app runs as a local demo:
+  // the canvas, boards and undo/redo stay fully functional, while the
+  // networked features (shared rooms, presence, chat broadcast) are off.
+  const demoMode = !isSupabaseConfigured;
+
   // ─── Identity ────────────────────────────────────────────────────
   const identity = useRef(loadIdentity()).current;
   const [currentUserId] = useState(identity.userId);
@@ -41,7 +56,9 @@ function App() {
   const [currentColor] = useState(identity.color);
 
   // ─── Board State ─────────────────────────────────────────────────
-  const [boards, setBoards] = useState<Board[]>([]);
+  const [boards, setBoards] = useState<Board[]>(() =>
+    demoMode ? loadLocalBoards() : []
+  );
   const [activeBoardId, setActiveBoardId] = useState<string | null>(null);
   const [activeBoardName, setActiveBoardName] = useState("CollabSpace");
 
@@ -82,6 +99,9 @@ function App() {
   // ─── Welcome Toast ───────────────────────────────────────────────
   const [showWelcome, setShowWelcome] = useState(true);
 
+  // ─── Demo-mode notice (dismissible, local-only deploys) ──────────
+  const [showDemoNotice, setShowDemoNotice] = useState(true);
+
   // ─── Undo/Redo ───────────────────────────────────────────────────
   const undoStackRef = useRef<HistoryAction[]>([]);
   const redoStackRef = useRef<HistoryAction[]>([]);
@@ -108,7 +128,10 @@ function App() {
   }, [pushToast]);
 
   useEffect(() => {
-    if (!isSupabaseConfigured) return;
+    if (demoMode) {
+      pushToast(`Local demo mode as ${currentUsername}`, "info");
+      return;
+    }
     pushToast(`Connected as ${currentUsername}`, "success");
     fetchBoards();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -142,6 +165,20 @@ function App() {
       undoStackRef.current = [];
       redoStackRef.current = [];
       refreshCounts();
+
+      // Local demo: hydrate from storage and show yourself as the only peer.
+      if (demoMode) {
+        setElements(loadLocalElements(boardId));
+        setOnlineUsers([
+          {
+            userId: identity.userId,
+            username: identity.username,
+            color: identity.color,
+            cursor: null,
+          },
+        ]);
+        return;
+      }
 
       try {
         const session = await joinBoard(boardId, {
@@ -201,11 +238,28 @@ function App() {
         pushToast("Failed to join board", "danger");
       }
     },
-    [activeBoardId, identity, pushToast, refreshCounts, currentUserId]
+    [activeBoardId, demoMode, identity, pushToast, refreshCounts, currentUserId]
   );
 
   // ─── Board CRUD ──────────────────────────────────────────────────
   const handleCreateBoard = useCallback(async () => {
+    if (demoMode) {
+      const now = new Date().toISOString();
+      const board: Board = {
+        id: `local-${crypto.randomUUID()}`,
+        name: `Board ${boards.length + 1}`,
+        createdAt: now,
+        updatedAt: now,
+        _count: { elements: 0 },
+      };
+      const next = [board, ...boards];
+      setBoards(next);
+      saveLocalBoards(next);
+      handleJoinBoard(board.id, board.name);
+      pushToast(`Created "${board.name}"`, "success");
+      return;
+    }
+
     try {
       const newBoard = await createBoard(`Board ${boards.length + 1}`);
       setBoards((prev) => [newBoard, ...prev]);
@@ -215,10 +269,28 @@ function App() {
       console.error("Failed to create board:", err);
       pushToast("Failed to create board", "danger");
     }
-  }, [boards.length, handleJoinBoard, pushToast]);
+  }, [boards, demoMode, handleJoinBoard, pushToast]);
 
   const handleDeleteBoard = useCallback(
     async (boardId: string) => {
+      if (demoMode) {
+        const remaining = boards.filter((b) => b.id !== boardId);
+        // Always leave the visitor with somewhere to draw.
+        const next = remaining.length > 0 ? remaining : [defaultBoard()];
+        setBoards(next);
+        saveLocalBoards(next);
+        removeLocalBoard(boardId);
+        if (boardId === activeBoardId) {
+          sessionRef.current?.leave();
+          sessionRef.current = null;
+          setActiveBoardId(null);
+          setActiveBoardName("CollabSpace");
+          setElements([]);
+        }
+        pushToast("Board deleted", "success");
+        return;
+      }
+
       try {
         await deleteBoard(boardId);
         if (boardId === activeBoardId) {
@@ -235,32 +307,65 @@ function App() {
         pushToast("Failed to delete board", "danger");
       }
     },
-    [activeBoardId, fetchBoards, pushToast]
+    [activeBoardId, boards, demoMode, fetchBoards, pushToast]
   );
 
   // ─── Canvas event handlers (called by DrawingBoard) ──────────────
   const handleDrawElement = useCallback(
     async (element: CanvasElement) => {
       if (!activeBoardId) return;
+
+      if (demoMode) {
+        setElements((prev) => {
+          const next = mergeElement(prev, element);
+          saveLocalElements(activeBoardId, next);
+          return next;
+        });
+        return;
+      }
+
       try {
         await upsertElement(activeBoardId, element);
       } catch (err) {
         console.error("Failed to save element:", err);
       }
     },
-    [activeBoardId]
+    [activeBoardId, demoMode]
   );
 
-  const handleDeleteElement = useCallback(async (elementId: string) => {
-    try {
-      await deleteElement(elementId);
-    } catch (err) {
-      console.error("Failed to delete element:", err);
-    }
-  }, []);
+  const handleDeleteElement = useCallback(
+    async (elementId: string) => {
+      if (demoMode) {
+        setElements((prev) => {
+          const next = prev.filter((e) => e.id !== elementId);
+          if (activeBoardId) saveLocalElements(activeBoardId, next);
+          return next;
+        });
+        return;
+      }
+
+      try {
+        await deleteElement(elementId);
+      } catch (err) {
+        console.error("Failed to delete element:", err);
+      }
+    },
+    [activeBoardId, demoMode]
+  );
 
   const handleClearBoard = useCallback(async () => {
     if (!activeBoardId) return;
+
+    if (demoMode) {
+      setElements([]);
+      saveLocalElements(activeBoardId, []);
+      undoStackRef.current = [];
+      redoStackRef.current = [];
+      refreshCounts();
+      pushToast("Board cleared", "success");
+      return;
+    }
+
     try {
       await clearBoardElements(activeBoardId);
       setElements([]);
@@ -272,22 +377,20 @@ function App() {
       console.error("Failed to clear board:", err);
       pushToast("Failed to clear board", "danger");
     }
-  }, [activeBoardId, pushToast, refreshCounts]);
+  }, [activeBoardId, demoMode, pushToast, refreshCounts]);
 
+  // Undo/redo replays go through the same handlers, so local demo mode
+  // and the Supabase-backed path stay behaviourally identical.
   const handleElementRevert = useCallback(
     async (element: CanvasElement) => {
       if (!activeBoardId) return;
-      try {
-        if (element._deleted) {
-          await deleteElement(element.id);
-        } else {
-          await upsertElement(activeBoardId, element);
-        }
-      } catch (err) {
-        console.error("Failed to revert element:", err);
+      if (element._deleted) {
+        await handleDeleteElement(element.id);
+      } else {
+        await handleDrawElement(element);
       }
     },
-    [activeBoardId]
+    [activeBoardId, handleDeleteElement, handleDrawElement]
   );
 
   // ─── Cursor move (presence update, ~30fps throttled upstream) ────
@@ -312,23 +415,66 @@ function App() {
   );
 
   // ─── Reaction (broadcast only, ephemeral, randomised spawn pos) ──
-  const handleSendReaction = useCallback((emoji: string) => {
-    const x = CANVAS_CENTER_FALLBACK.x + Math.random() * 200 - 100;
-    const y = CANVAS_CENTER_FALLBACK.y + Math.random() * 100 - 50;
-    sessionRef.current?.sendReaction({ emoji, x, y });
-  }, []);
+  const handleSendReaction = useCallback(
+    (emoji: string) => {
+      const x = CANVAS_CENTER_FALLBACK.x + Math.random() * 200 - 100;
+      const y = CANVAS_CENTER_FALLBACK.y + Math.random() * 100 - 50;
+
+      // Local demo: render the burst for the visitor only.
+      if (demoMode) {
+        const local: Reaction = {
+          id: crypto.randomUUID(),
+          userId: currentUserId,
+          username: currentUsername,
+          userColor: currentColor,
+          emoji,
+          x,
+          y,
+          createdAt: Date.now(),
+        };
+        setReactions((prev) => [...prev, local]);
+        setTimeout(() => {
+          setReactions((prev) => prev.filter((r) => r.id !== local.id));
+        }, 3000);
+        return;
+      }
+
+      sessionRef.current?.sendReaction({ emoji, x, y });
+    },
+    [demoMode, currentUserId, currentUsername, currentColor]
+  );
 
   // ─── Chat send ───────────────────────────────────────────────────
   const handleSendChat = useCallback(
     async (text: string) => {
       if (!activeBoardId) return;
+
+      const trimmed = sanitizeChatText(text);
+      if (!trimmed) return;
+
+      // Local demo: echo into this tab only, matching the sanitising the
+      // Supabase path applies before insert.
+      if (demoMode) {
+        const msg: ChatMessage = {
+          id: crypto.randomUUID(),
+          boardId: activeBoardId,
+          userId: identity.userId,
+          username: sanitizeUsername(identity.username) ?? "Guest",
+          userColor: sanitizeColor(identity.color, "#6366f1"),
+          text: trimmed,
+          createdAt: new Date().toISOString(),
+        };
+        setChatMessages((prev) => [...prev, msg]);
+        return;
+      }
+
       try {
-        await sendMessage(activeBoardId, identity, text);
+        await sendMessage(activeBoardId, identity, trimmed);
       } catch (err) {
         console.error("Failed to send message:", err);
       }
     },
-    [activeBoardId, identity]
+    [activeBoardId, demoMode, identity]
   );
 
   // ─── Undo/Redo wiring ────────────────────────────────────────────
@@ -396,26 +542,32 @@ function App() {
   }, []);
 
   // ─── Render ──────────────────────────────────────────────────────
-  if (!isSupabaseConfigured) {
-    return (
-      <div
-        className="app-container"
-        data-testid="supabase-unconfigured"
-        style={{ padding: 40, fontFamily: "var(--font-sans)", color: "var(--text-primary)" }}
-      >
-        <h1 data-testid="site-title">⚠️ Supabase not configured</h1>
-        <p>
-          Copy <code>client/.env.example</code> to <code>client/.env</code> and fill in
-          <code> VITE_SUPABASE_URL</code> and <code>VITE_SUPABASE_ANON_KEY</code> from your
-          Supabase project.
-        </p>
-        <p>See <code>README.md</code> for full setup steps.</p>
-      </div>
-    );
-  }
-
   return (
     <div className="app-container" data-testid="app-shell">
+      {demoMode && showDemoNotice && (
+        <div
+          className="demo-mode-banner"
+          data-testid="demo-mode-banner"
+          role="status"
+          aria-live="polite"
+        >
+          <span className="demo-mode-dot" aria-hidden />
+          <div className="demo-mode-text" data-testid="site-title">
+            <strong>Local demo mode.</strong> The canvas runs entirely in your browser, so drawing,
+            sticky notes, rooms and undo/redo all work and survive a refresh. Shared rooms, live
+            presence and chat broadcast need Supabase credentials. See <code>README.md</code>.
+          </div>
+          <button
+            type="button"
+            className="demo-mode-dismiss"
+            aria-label="Dismiss demo mode notice"
+            onClick={() => setShowDemoNotice(false)}
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       <DrawingBoard
         elements={elements}
         activeTool={activeTool}
@@ -468,7 +620,8 @@ function App() {
         }}
         activeBoardName={activeBoardName}
         currentUsername={currentUsername}
-        connected={isSupabaseConfigured}
+        connected={!demoMode}
+        demoMode={demoMode}
         themeToggle={<ThemeToggle />}
       />
       <Toasts toasts={toasts} onDismiss={dismissToast} />

@@ -1913,3 +1913,71 @@ button:focus-visible,
     --border-strong: rgba(15, 23, 42, 0.25);
   }
 }
+
+/* ─── Local demo mode notice ───────────────────────────────────── */
+
+.demo-mode-banner {
+  position: fixed;
+  top: var(--space-4);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: var(--z-toasts);
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  max-width: min(680px, calc(100vw - var(--space-6)));
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-lg);
+  background: var(--glass-bg-strong);
+  backdrop-filter: blur(20px) saturate(150%);
+  border: 1px solid var(--border-accent);
+  box-shadow: var(--shadow-lg);
+  font-size: var(--text-sm);
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+
+.demo-mode-banner strong {
+  color: var(--text-primary);
+}
+
+.demo-mode-banner code {
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+}
+
+.demo-mode-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  margin-top: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 8px var(--accent-glow);
+}
+
+.demo-mode-text {
+  flex: 1;
+}
+
+.demo-mode-dismiss {
+  flex: none;
+  padding: 2px 4px;
+  line-height: 1;
+  color: var(--text-muted);
+}
+
+.demo-mode-dismiss:hover {
+  color: var(--text-primary);
+}
+
+.demo-note {
+  margin-bottom: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--accent-subtle);
+  border: 1px solid var(--border-accent);
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
